@@ -30,6 +30,17 @@ function formatDuration(ms: number) {
   return `${h}h ${m.toString().padStart(2, "0")}m`;
 }
 
+// Always 24-hour time (hour12: false), regardless of the browser's locale
+// defaults -- some locales/browsers show AM/PM even with dateStyle/timeStyle
+// "short" unless this is set explicitly.
+function formatDateTime(d: Date) {
+  return d.toLocaleString(undefined, {
+    dateStyle: "short",
+    timeStyle: "short",
+    hour12: false,
+  });
+}
+
 function toDateInputValue(d: Date) {
   return d.toISOString().slice(0, 10);
 }
@@ -399,8 +410,8 @@ export default function AdminPage() {
       return [
         e.employees?.name ?? "",
         e.companies?.name ?? "",
-        inT.toLocaleString(),
-        outT ? outT.toLocaleString() : "Active",
+        formatDateTime(inT),
+        outT ? formatDateTime(outT) : "Active",
         durHours,
         e.note ?? "",
       ];
@@ -584,12 +595,10 @@ export default function AdminPage() {
                       {e.companies?.name ?? "—"}
                     </td>
                     <td className="px-4 py-3 font-num" style={{ color: "var(--paper-dim)" }}>
-                      {inT.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
+                      {formatDateTime(inT)}
                     </td>
                     <td className="px-4 py-3 font-num" style={{ color: "var(--paper-dim)" }}>
-                      {outT
-                        ? outT.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })
-                        : "Active"}
+                      {outT ? formatDateTime(outT) : "Active"}
                     </td>
                     <td className="px-4 py-3 font-num" style={{ color: !outT ? "var(--ice)" : "var(--paper)" }}>
                       {formatDuration(dur)}
@@ -732,12 +741,10 @@ export default function AdminPage() {
                         {e.companies?.name ?? "—"}
                       </td>
                       <td className="px-4 py-3 font-num" style={{ color: "var(--paper-dim)" }}>
-                        {inT.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
+                        {formatDateTime(inT)}
                       </td>
                       <td className="px-4 py-3 font-num" style={{ color: "var(--paper-dim)" }}>
-                        {outT
-                          ? outT.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })
-                          : "Active"}
+                        {outT ? formatDateTime(outT) : "Active"}
                       </td>
                       <td className="px-4 py-3 font-num" style={{ color: !outT ? "var(--ice)" : "var(--paper)" }}>
                         {formatDuration(dur)}
