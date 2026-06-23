@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import PinPad from "../components/PinPad";
+import { fortnightStart } from "@/lib/fortnight";
 
 type Employee = {
   id: string;
@@ -43,18 +44,6 @@ function formatDateTime(d: Date) {
 
 function toDateInputValue(d: Date) {
   return d.toISOString().slice(0, 10);
-}
-
-// Returns the start (midnight) of the 14-day period containing `anchor`,
-// counting in fixed 14-day blocks from a fixed reference date. This keeps
-// fortnight boundaries stable and predictable rather than drifting.
-// Reference: Friday 19 June 2026, the start of the current pay fortnight.
-function fortnightStart(anchor: Date) {
-  const referenceFriday = new Date("2026-06-19T00:00:00");
-  const dayMs = 86400000;
-  const daysSince = Math.floor((anchor.getTime() - referenceFriday.getTime()) / dayMs);
-  const fortnightIndex = Math.floor(daysSince / 14);
-  return new Date(referenceFriday.getTime() + fortnightIndex * 14 * dayMs);
 }
 
 export default function AdminPage() {
