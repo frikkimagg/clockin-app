@@ -213,6 +213,53 @@ If you're setting this up fresh (new Supabase project, nothing in it yet),
 you don't need the migration file — `supabase-schema.sql` already includes
 everything.
 
+## Restricting clock-in to your office network
+
+You can require staff to be on a specific network (e.g. your office wifi
+with a static public IP) to clock in or out, while admins (like an
+accountant doing payroll) can still log in and use the app from anywhere.
+
+**This is set directly in the admin dashboard — no Netlify or code changes
+needed.**
+
+**If you're setting this up on a database that already existed before this
+feature** (i.e. you've used the app already), run
+`supabase-migration-settings.sql` once in your Supabase SQL Editor first —
+it adds the small settings table this feature uses. If you're setting up
+fresh, `supabase-schema.sql` already includes it.
+
+**To turn it on:**
+
+1. Find your network's static public IP address. The easiest way: from a
+   device connected to that network, visit [whatismyipaddress.com](https://whatismyipaddress.com)
+   and note the IPv4 address shown.
+2. Log into `/admin` with an admin PIN, click the **Settings** tab.
+3. Type that IP into **Allowed IP address** and click **Save**.
+
+**To turn it off again:** click **Clear (allow anywhere)**, then **Save**
+— or just empty the field and save. Either way, clock-in goes back to
+working from any network.
+
+**What this does and doesn't affect:**
+
+- Regular staff can only clock in/out when their request comes from that
+  IP. If they try from elsewhere, they'll see a message telling them
+  clock-in only works from the office network — the rest of the app (the
+  clock screen itself, entering a PIN) still loads fine everywhere, it's
+  only the actual clock-in/out action that's blocked.
+- Anyone with admin access (`is_admin` turned on for their employee record)
+  skips this check entirely and can clock in or use the admin dashboard
+  from anywhere, any network.
+- This doesn't affect the admin dashboard's **"+ Add manual entry"**
+  feature — admins can always add or fix entries for anyone from anywhere,
+  since that's an admin action rather than a self-service clock-in.
+
+**One thing to know:** if your office network's public IP ever changes
+(some ISPs rotate even "static" IPs occasionally, or you switch routers),
+clock-in will start failing for staff until you update this in the
+Settings tab. If that happens, just repeat the steps above with the new IP
+— it takes effect immediately, no redeploy needed.
+
 ## If you ever want to make changes to the code
 
 You don't need to touch GitHub or Netlify settings again for normal use —

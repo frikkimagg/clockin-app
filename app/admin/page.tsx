@@ -49,7 +49,7 @@ function fortnightStart(anchor: Date) {
 export default function AdminPage() {
   const [authed, setAuthed] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"hours" | "payroll" | "team">("hours");
+  const [tab, setTab] = useState<"hours" | "payroll" | "team" | "settings">("hours");
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -87,6 +87,13 @@ export default function AdminPage() {
   const [manualError, setManualError] = useState<string | null>(null);
   const [manualBusy, setManualBusy] = useState(false);
 
+  // Network restriction setting
+  const [allowedIpInput, setAllowedIpInput] = useState("");
+  const [allowedIpSaved, setAllowedIpSaved] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [settingsSavedMessage, setSettingsSavedMessage] = useState(false);
+
   async function checkAdminPin(pin: string) {
     setAuthError(null);
     try {
@@ -109,19 +116,24 @@ export default function AdminPage() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [entriesRes, employeesRes, companiesRes] = await Promise.all([
+      const [entriesRes, employeesRes, companiesRes, settingsRes] = await Promise.all([
         fetch("/api/admin/entries"),
         fetch("/api/admin/employees"),
         fetch("/api/admin/companies"),
+        fetch("/api/admin/settings"),
       ]);
-      const [entriesData, employeesData, companiesData] = await Promise.all([
+      const [entriesData, employeesData, companiesData, settingsData] = await Promise.all([
         entriesRes.json(),
         employeesRes.json(),
         companiesRes.json(),
+        settingsRes.json(),
       ]);
       setEntries(entriesData.entries ?? []);
       setEmployees(employeesData.employees ?? []);
       setCompanies(companiesData.companies ?? []);
+      const ip = settingsData.settings?.allowed_clock_in_ip ?? "";
+      setAllowedIpSaved(ip || null);
+      setAllowedIpInput(ip ?? "");
     } finally {
       setLoading(false);
     }
@@ -316,6 +328,36 @@ export default function AdminPage() {
     loadAll();
   }
 
+  async function saveAllowedIp() {
+    setSettingsError(null);
+    setSettingsSavedMessage(false);
+    setSettingsBusy(true);
+    try {
+      const trimmed = allowedIpInput.trim();
+      const res = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allowedClockInIp: trimmed || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSettingsError(data.error || "Couldn't save.");
+        return;
+      }
+      setAllowedIpSaved(trimmed || null);
+      setSettingsSavedMessage(true);
+      setTimeout(() => setSettingsSavedMessage(false), 2500);
+    } catch {
+      setSettingsError("Couldn't connect. Try again.");
+    } finally {
+      setSettingsBusy(false);
+    }
+  }
+
+  function clearAllowedIp() {
+    setAllowedIpInput("");
+  }
+
   function shiftFortnight(direction: -1 | 1) {
     const start = new Date(rangeStart + "T00:00:00");
     const newStart = new Date(start.getTime() + direction * 14 * 86400000);
@@ -468,6 +510,17 @@ export default function AdminPage() {
           }}
         >
           Team
+        </button>
+        <button
+          onClick={() => setTab("settings")}
+          className="font-display uppercase text-xs tracking-wide px-4 py-2 rounded-lg"
+          style={{
+            background: tab === "settings" ? "var(--ink-raised)" : "transparent",
+            color: tab === "settings" ? "var(--paper)" : "var(--paper-dim)",
+            border: "1px solid var(--ink-line)",
+          }}
+        >
+          Settings
         </button>
       </div>
 
@@ -837,6 +890,78 @@ export default function AdminPage() {
             >
               Add member
             </button>
+          </div>
+        </div>
+      )}
+
+      {!loading && tab === "settings" && (
+        <div className="flex flex-col gap-6 max-w-md">
+          <div
+            className="rounded-xl p-6 flex flex-col gap-4"
+            style={{ background: "var(--ink-raised)", border: "1px solid var(--ink-line)" }}
+          >
+            <h2 className="font-display uppercase text-sm tracking-wide" style={{ color: "var(--paper)" }}>
+              Office network restriction
+            </h2>
+            <p className="text-sm" style={{ color: "var(--paper-dim)" }}>
+              When set, staff can only clock in or out from this IP address.
+              Admins always bypass this and can clock in from anywhere.
+              Leave it blank so clock-in works from any network.
+            </p>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs uppercase tracking-wide" style={{ color: "var(--paper-dim)" }}>
+                Allowed IP address
+              </label>
+              <input
+                type="text"
+                value={allowedIpInput}
+                onChange={(e) => setAllowedIpInput(e.target.value)}
+                placeholder="e.g. 203.0.113.5 — leave blank to allow any network"
+                className="rounded-lg px-3 py-2 text-sm outline-none font-num"
+                style={{ background: "var(--ink)", border: "1px solid var(--ink-line)", color: "var(--paper)" }}
+              />
+            </div>
+
+            <p className="text-xs" style={{ color: "var(--paper-dim)" }}>
+              Currently{" "}
+              {allowedIpSaved ? (
+                <span style={{ color: "var(--ice)" }}>restricted to {allowedIpSaved}</span>
+              ) : (
+                <span style={{ color: "var(--paper-dim)" }}>unrestricted — works from any network</span>
+              )}
+              .
+            </p>
+
+            {settingsError && (
+              <p className="text-sm" style={{ color: "var(--danger)" }}>
+                {settingsError}
+              </p>
+            )}
+            {settingsSavedMessage && (
+              <p className="text-sm" style={{ color: "var(--ice)" }}>
+                Saved.
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={clearAllowedIp}
+                disabled={settingsBusy}
+                className="flex-1 font-display uppercase tracking-wide text-xs rounded-lg h-11"
+                style={{ border: "1px solid var(--ink-line)", color: "var(--paper-dim)" }}
+              >
+                Clear (allow anywhere)
+              </button>
+              <button
+                onClick={saveAllowedIp}
+                disabled={settingsBusy}
+                className="flex-1 font-display uppercase tracking-wide text-xs rounded-lg h-11 disabled:opacity-50"
+                style={{ background: "var(--ice)", color: "var(--ink)" }}
+              >
+                Save
+              </button>
+            </div>
           </div>
         </div>
       )}

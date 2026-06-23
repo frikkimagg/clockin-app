@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase-server";
+import { getClientIp, isAllowedClockInIp } from "@/lib/network";
 
 // Toggles clock-in / clock-out for an employee. If there's an open entry
 // (clock_out is null), this closes it. Otherwise it opens a new one.
 // companyId is only used when clocking in, for employees who can clock in
 // for more than one company -- it's validated server-side against that
 // employee's allowed companies so the choice can't be spoofed via the API.
+//
+// Network restriction: admins can set an allowed IP in app_settings (via
+// the admin dashboard). If set, regular staff can only clock in/out from
+// that IP. Admins themselves (e.g. an accountant doing payroll remotely)
+// are exempt and can clock in from anywhere.
 export async function POST(req: NextRequest) {
   try {
     const { employeeId, companyId, note } = await req.json();
@@ -15,6 +21,39 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
+
+    const { data: employee, error: employeeError } = await supabase
+      .from("employees")
+      .select("id, is_admin")
+      .eq("id", employeeId)
+      .single();
+
+    if (employeeError) {
+      return NextResponse.json({ error: employeeError.message }, { status: 500 });
+    }
+
+    if (!employee.is_admin) {
+      const { data: setting, error: settingError } = await supabase
+        .from("app_settings")
+        .select("value")
+        .eq("key", "allowed_clock_in_ip")
+        .maybeSingle();
+
+      if (settingError) {
+        return NextResponse.json({ error: settingError.message }, { status: 500 });
+      }
+
+      const clientIp = getClientIp(req);
+      if (!isAllowedClockInIp(clientIp, setting?.value ?? null)) {
+        return NextResponse.json(
+          {
+            error:
+              "Clock-in only works from the office network. Ask an admin if you need help.",
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     const { data: openEntry, error: lookupError } = await supabase
       .from("time_entries")
