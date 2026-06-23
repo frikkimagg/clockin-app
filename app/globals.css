@@ -1,0 +1,44 @@
+@import url("https://fonts.googleapis.com/css2?family=Archivo+Expanded:wght@600;700;800&family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+
+:root {
+  --ink: #0d1316;
+  --ink-raised: #141c21;
+  --ink-line: #25323a;
+  --paper: #eef2f1;
+  --paper-dim: #9fb0ad;
+  --ice: #5eead4;
+  --ice-dim: #1f3d39;
+  --amber: #e8a33d;
+  --amber-dim: #3d2f17;
+  --danger: #e85d4d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--ink);
+  color: var(--paper);
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: "Archivo Expanded", system-ui, sans-serif;
+}
+
+.font-num {
+  font-family: "Barlow Condensed", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+
