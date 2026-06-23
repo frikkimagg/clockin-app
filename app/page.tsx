@@ -16,16 +16,39 @@ type Employee = {
   companies: Company[];
 };
 
+type MyHoursEntry = {
+  id: string;
+  clock_in: string;
+  clock_out: string | null;
+  companies: { id: string; name: string } | null;
+};
+
 type Screen =
   | { step: "pin" }
   | { step: "confirm"; employee: Employee; clockedIn: boolean; since?: string }
   | { step: "pickCompany"; employee: Employee }
   | { step: "done"; employee: Employee; action: "clocked_in" | "clocked_out" };
 
+function formatDuration(ms: number) {
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  return `${h}h ${m.toString().padStart(2, "0")}m`;
+}
+
+function formatDateTime(d: Date) {
+  return d.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short", hour12: false });
+}
+
 export default function Home() {
   const [screen, setScreen] = useState<Screen>({ step: "pin" });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const [myHoursOpen, setMyHoursOpen] = useState(false);
+  const [myHoursLoading, setMyHoursLoading] = useState(false);
+  const [myHoursEntries, setMyHoursEntries] = useState<MyHoursEntry[] | null>(null);
+  const [myHoursTotalMs, setMyHoursTotalMs] = useState(0);
+  const [myHoursError, setMyHoursError] = useState<string | null>(null);
 
   async function handlePin(pin: string) {
     setError(null);
@@ -75,7 +98,10 @@ export default function Home() {
         return;
       }
       setScreen({ step: "done", employee, action: data.action });
-      setTimeout(() => setScreen({ step: "pin" }), 2200);
+      setTimeout(() => {
+        setScreen({ step: "pin" });
+        resetMyHours();
+      }, 2200);
     } catch {
       setError("Couldn't connect. Check your network and try again.");
     } finally {
@@ -101,9 +127,42 @@ export default function Home() {
     performClock(screen.employee, companyId);
   }
 
+  function resetMyHours() {
+    setMyHoursOpen(false);
+    setMyHoursEntries(null);
+    setMyHoursTotalMs(0);
+    setMyHoursError(null);
+  }
+
+  async function toggleMyHours(employeeId: string) {
+    if (myHoursOpen) {
+      setMyHoursOpen(false);
+      return;
+    }
+    setMyHoursOpen(true);
+    if (myHoursEntries !== null) return; // already loaded for this session
+    setMyHoursLoading(true);
+    setMyHoursError(null);
+    try {
+      const res = await fetch(`/api/my-hours?employeeId=${employeeId}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setMyHoursError(data.error || "Couldn't load your hours.");
+        return;
+      }
+      setMyHoursEntries(data.entries ?? []);
+      setMyHoursTotalMs(data.totalMs ?? 0);
+    } catch {
+      setMyHoursError("Couldn't connect. Try again.");
+    } finally {
+      setMyHoursLoading(false);
+    }
+  }
+
   function cancel() {
     setScreen({ step: "pin" });
     setError(null);
+    resetMyHours();
   }
 
   return (
@@ -177,6 +236,82 @@ export default function Home() {
             >
               {screen.clockedIn ? "Clock Out" : "Clock In"}
             </button>
+
+            <button
+              onClick={() => toggleMyHours(screen.employee.id)}
+              className="text-xs underline-offset-4 hover:underline"
+              style={{ color: "var(--paper-dim)" }}
+            >
+              {myHoursOpen ? "Hide my hours" : "My hours this fortnight"}
+            </button>
+
+            {myHoursOpen && (
+              <div className="w-full flex flex-col gap-2 -mt-2">
+                {myHoursLoading && (
+                  <p className="text-xs text-center" style={{ color: "var(--paper-dim)" }}>
+                    Loading…
+                  </p>
+                )}
+                {myHoursError && (
+                  <p className="text-xs text-center" style={{ color: "var(--danger)" }}>
+                    {myHoursError}
+                  </p>
+                )}
+                {!myHoursLoading && !myHoursError && myHoursEntries && (
+                  <>
+                    <p
+                      className="text-xs text-center"
+                      style={{ color: "var(--paper-dim)" }}
+                    >
+                      {myHoursEntries.length} shift{myHoursEntries.length === 1 ? "" : "s"} ·{" "}
+                      <span style={{ color: "var(--ice)" }}>{formatDuration(myHoursTotalMs)}</span>
+                    </p>
+                    {myHoursEntries.length === 0 ? (
+                      <p className="text-xs text-center" style={{ color: "var(--paper-dim)" }}>
+                        No shifts yet this fortnight.
+                      </p>
+                    ) : (
+                      <div
+                        className="flex flex-col gap-1 max-h-48 overflow-y-auto rounded-lg p-2"
+                        style={{ background: "var(--ink)", border: "1px solid var(--ink-line)" }}
+                      >
+                        {myHoursEntries.map((e) => {
+                          const inT = new Date(e.clock_in);
+                          const outT = e.clock_out ? new Date(e.clock_out) : null;
+                          const dur = outT
+                            ? outT.getTime() - inT.getTime()
+                            : Date.now() - inT.getTime();
+                          return (
+                            <div
+                              key={e.id}
+                              className="flex justify-between items-baseline text-xs px-2 py-1.5"
+                              style={{ borderBottom: "1px solid var(--ink-line)" }}
+                            >
+                              <div className="flex flex-col">
+                                <span className="font-num" style={{ color: "var(--paper)" }}>
+                                  {formatDateTime(inT)}
+                                </span>
+                                {e.companies?.name && (
+                                  <span style={{ color: "var(--paper-dim)" }}>
+                                    {e.companies.name}
+                                  </span>
+                                )}
+                              </div>
+                              <span
+                                className="font-num"
+                                style={{ color: !outT ? "var(--ice)" : "var(--paper-dim)" }}
+                              >
+                                {outT ? formatDuration(dur) : "Active"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             <button
               onClick={cancel}
